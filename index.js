@@ -2,25 +2,20 @@ const { default: makeWASocket, useMultiFileAuthState } = require("@whiskeysocket
 const express = require("express");
 const app = express();
 app.use(express.json());
-
 let sock;
-
 async function startRobot(phone = null) {
     const { state, saveCreds } = await useMultiFileAuthState('session_mohan');
     sock = makeWASocket({ auth: state, printQRInTerminal: false });
     sock.ev.on('creds.update', saveCreds);
-
     if (phone) {
-        await new Promise(r => setTimeout(r, 7000)); // Tunggu koneksi
+        await new Promise(r => setTimeout(r, 7000));
         return await sock.requestPairingCode(phone);
     }
 }
-
 app.get("/pair", async (req, res) => {
     let code = await startRobot(req.query.phone);
     res.json({ code: code });
 });
-
 app.post("/send", async (req, res) => {
     const { target, message } = req.body;
     try {
@@ -28,6 +23,5 @@ app.post("/send", async (req, res) => {
         res.json({ status: "success" });
     } catch (e) { res.json({ status: "error" }); }
 });
-
-app.get("/", (req, res) => res.send("Robot Mohan Aktif!"));
-app.listen(3000, () => { startRobot(); });
+app.get("/", (req, res) => res.send("Robot Aktif!"));
+app.listen(3000, () => { startRobot(); console.log("ROBOT AKTIF!"); });
