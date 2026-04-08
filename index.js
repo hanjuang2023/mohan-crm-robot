@@ -1,27 +1,57 @@
-const { default: makeWASocket, useMultiFileAuthState } = require("@whiskeysockets/baileys");
+const { default: makeWASocket, useMultiFileAuthState, fetchLatestBaileysVersion } = require("@whiskeysockets/baileys");
+const pino = require("pino");
 const express = require("express");
 const app = express();
 app.use(express.json());
+
 let sock;
-async function startRobot(phone = null) {
-    const { state, saveCreds } = await useMultiFileAuthState('session_mohan');
-    sock = makeWASocket({ auth: state, printQRInTerminal: false });
-    sock.ev.on('creds.update', saveCreds);
+
+async function startWA(phone = null) {
+    const { state, saveCreds } = await useMultiFileAuthState('mohan_session');
+    const { version } = await fetchLatestBaileysVersion();
+
+    sock = makeWASocket({
+        version,
+        auth: state,
+        printQRInTerminal: false,
+        logger: pino({ level: "silent" }),
+    });
+
+    sock.ev.on("creds.update", saveCreds);
+
     if (phone) {
-        await new Promise(r => setTimeout(r, 7000));
-        return await sock.requestPairingCode(phone);
+        // Tunggu 5 detik agar koneksi siap
+        await new Promise(resolve => setTimeout(resolve, 5000));
+        try {
+            let code = await sock.requestPairingCode(phone);
+            return code;
+        } catch (err) {
+            console.error(err);
+            return "ERROR";
+        }
     }
 }
+
 app.get("/pair", async (req, res) => {
-    let code = await startRobot(req.query.phone);
-    res.json({ code: code });
+    const num = req.query.phone;
+    if (!num) return res.json({ code: "NOMOR KOSONG" });
+    const pairingCode = await startWA(num);
+    res.json({ code: pairingCode });
 });
+
 app.post("/send", async (req, res) => {
-    const { target, message } = req.body;
+    const { phone, message } = req.body;
     try {
-        await sock.sendMessage(target + "@s.whatsapp.net", { text: message });
+        await sock.sendMessage(phone + "@s.whatsapp.net", { text: message });
         res.json({ status: "success" });
-    } catch (e) { res.json({ status: "error" }); }
+    } catch (e) {
+        res.json({ status: "error" });
+    }
 });
-app.get("/", (req, res) => res.send("Robot Aktif!"));
-app.listen(3000, () => { startRobot(); console.log("ROBOT AKTIF!"); });
+
+app.get("/", (req, res) => res.send("Robot Mohan v8 Online!"));
+
+app.listen(3000, () => {
+    console.log("SERVER AKTIF DI PORT 3000");
+    startWA(); 
+});
